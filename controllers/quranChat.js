@@ -3,9 +3,11 @@ const PineconeStore = require("langchain/vectorstores/pinecone").PineconeStore;
 const OpenAIEmbeddings =
   require("langchain/embeddings/openai").OpenAIEmbeddings;
 const OpenAI = require("openai");
+const conversationService = require("../services/conversationService");
 
 const completeChat = async (req, res, next) => {
   try {
+    const queryTimestamp = new Date();
     const client = new Pinecone();
 
     const pineconeIndex = client.Index(process.env.PINECONE_INDEX);
@@ -43,11 +45,66 @@ const completeChat = async (req, res, next) => {
       model: "gpt-3.5-turbo",
     });
 
+    // let conversation;
+    // const mssg = "nothing";
+    if (!req.body.user) {
+      conversation = await conversationService.create({
+        query: req.body.query,
+        reply: chatCompletion.choices[0].message.content,
+        botTimestamp: new Date(),
+        queryTimestamp,
+      });
+
+      console.log("conversation", conversation);
+    } else {
+      conversation = await conversationService.addMessage({
+        userIdToUpdate: req.body.user,
+        newMessages: [
+          { text: req.body.query, sender: "user", timestamp: queryTimestamp },
+          {
+            text: chatCompletion.choices[0].message.content,
+            sender: "bot",
+            timestamp: new Date(),
+          },
+        ],
+      });
+    }
+    // chatCompletion.choices[0].message.content
     res.json({
       text: chatCompletion.choices[0].message.content,
       results,
       chatCompletion,
+      user: conversation.user,
     });
+  } catch (error) {
+    console.log("error", error);
+    res.status(500).json({ error: error.toString() });
+  }
+};
+
+const getChat = async (req, res, next) => {
+  try {
+    const conversation = await conversationService.findByUser(req.params.user);
+    if (conversation) {
+      const sortedConversation = conversation.messages.sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+      );
+
+      const formattedConversation = sortedConversation.map((convo) => {
+        return {
+          by: convo.sender,
+          text: convo.text,
+        };
+      });
+
+      res.json({
+        conversation: formattedConversation,
+      });
+    } else {
+      res.json({
+        conversation: [],
+      });
+    }
   } catch (error) {
     console.log("error", error);
     res.status(500).json({ error: error.toString() });
@@ -56,4 +113,5 @@ const completeChat = async (req, res, next) => {
 
 module.exports = {
   completeChat,
+  getChat,
 };

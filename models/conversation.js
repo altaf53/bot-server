@@ -1,10 +1,10 @@
 const mongoose = require("mongoose");
 
-const messageSchema = new mongoose.Schema({
+const messageSchema = {
   text: String,
   sender: String,
   timestamp: Date,
-});
+};
 
 const ConversationSchema = new mongoose.Schema({
   bot: String,
@@ -16,4 +16,6 @@ const ConversationSchema = new mongoose.Schema({
   user: String,
 });
 
-module.exports = mongoose.model("Conversation", ConversationSchema);
+const Conversation = mongoose.model("Conversation", ConversationSchema);
+
+module.exports = Conversation;
